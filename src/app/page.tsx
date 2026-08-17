@@ -6,8 +6,8 @@ import type { Farmer } from "@/lib/types";
 
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "1234";
-const ADMIN_PASSWORD = "admin123";
+const CLERK_PASSWORD = "TeaFactory2026";
+const ADMIN_PASSWORD = "AdminTea@2026";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {

@@ -6,8 +6,8 @@ import type { Farmer } from "@/lib/types";
 
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "TeaFactory2026";
-const ADMIN_PASSWORD = "AdminTea@2026";
+const CLERK_PASSWORD = "1234";
+const ADMIN_PASSWORD = "admin123";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -247,7 +247,10 @@ export default function Dashboard() {
       const { data, error, count } = await query;
       if (error) {
         console.error(error);
-        setAdminMessage({ type: "error", text: "Failed to load farmers." });
+        setAdminMessage({
+          type: "error",
+          text: `Failed to load farmers. ${error.message || ""}`,
+        });
       } else {
         setFarmers(data || []);
         setTotalCount(count || 0);
@@ -543,35 +546,47 @@ export default function Dashboard() {
       return result;
     };
 
+    // Strip BOM and normalise headers
     const rawHeaders = splitLine(lines[0]).map((h) =>
       h
+        .replace(/^\uFEFF/, "")
         .toLowerCase()
         .replace(/"/g, "")
         .replace(/\./g, "")
         .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
         .trim()
     );
 
-    // Map your real Chebango CSV headers + common variations
+    // Supports:
+    // Grower No. | Farmer Name | Buying Center | ID No. | mobile number | Route | date
+    // GROWER NO. | First/Middle/Last Name | ID Number | Farmer Mobile Number | ...
     const mapHeader = (h: string): string => {
-      // Grower number
+      // Grower / Farmers number
       if (
         h.includes("grower") ||
+        h.includes("farmers_no") ||
+        h.includes("farmer_no") ||
         h === "g_no" ||
         h === "growerno" ||
-        h === "grower_no"
+        h === "grower_no" ||
+        h === "farmerno" ||
+        h === "farmer_number" ||
+        h === "farmers_number"
       )
         return "grower_number";
 
-      // National ID
+      // National ID / ID No. / ID Number
       if (
         h === "id_number" ||
         h === "national_id" ||
         h === "nationalid" ||
         h === "nid" ||
         h === "id_no" ||
+        h === "idno" ||
         h === "id" ||
-        (h.includes("id") && h.includes("number"))
+        h === "national_id_number" ||
+        (h.includes("id") && (h.includes("number") || h.includes("no")))
       )
         return "national_id";
 
@@ -584,16 +599,29 @@ export default function Dashboard() {
       )
         return "mobile_number";
 
-      // Name parts
+      // Name parts OR full name in one column (Farmer Name)
       if (h === "first_name" || h === "firstname" || h === "fname")
         return "first_name";
       if (h === "middle_name" || h === "middlename" || h === "mname")
         return "middle_name";
-      if (h === "last_name" || h === "lastname" || h === "lname" || h === "surname")
+      if (
+        h === "last_name" ||
+        h === "lastname" ||
+        h === "lname" ||
+        h === "surname"
+      )
         return "last_name";
-      if (h === "name" || h === "farmer_name" || h === "full_name") return "name";
+      if (
+        h === "name" ||
+        h === "farmer_name" ||
+        h === "full_name" ||
+        h === "farmers_name" ||
+        (h.includes("farmer") && h.includes("name")) ||
+        (h.includes("name") && !h.includes("file") && !h.includes("user"))
+      )
+        return "name";
 
-      // Buying center / location
+      // Buying center
       if (
         h.includes("buying") ||
         h.includes("centre") ||
@@ -603,10 +631,12 @@ export default function Dashboard() {
       )
         return "buying_center";
 
-      // Route
-      if (h.includes("route")) return "route";
+      // Route (not "route" false positives)
+      if (h.includes("route") || h === "raute") return "route";
 
-      // Explicitly ignore bank and other sensitive fields
+      // Optional date — not stored in Farmers search table
+      if (h.includes("date") || h.includes("registered")) return "_ignore";
+
       if (
         h.includes("bank") ||
         h.includes("account") ||
@@ -632,7 +662,7 @@ export default function Dashboard() {
       });
 
       // Build full name from parts if needed
-      let fullName = row.name || "";
+      let fullName = (row.name || "").trim();
       if (!fullName) {
         fullName = [row.first_name, row.middle_name, row.last_name]
           .filter(Boolean)
@@ -640,17 +670,18 @@ export default function Dashboard() {
           .trim();
       }
 
-      const grower = row.grower_number || "";
-      const nationalId = row.national_id || "";
+      const grower = String(row.grower_number || "").trim();
+      const nationalId = String(row.national_id || "").trim();
 
+      // Required: grower number, name, national ID
       if (grower && fullName && nationalId) {
         rows.push({
           grower_number: grower,
           name: fullName,
           national_id: nationalId,
-          mobile_number: row.mobile_number || "",
-          buying_center: row.buying_center || "",
-          route: row.route || "",
+          mobile_number: String(row.mobile_number || "").trim(),
+          buying_center: String(row.buying_center || "").trim(),
+          route: String(row.route || "").trim(),
         });
       }
     }
@@ -1915,7 +1946,7 @@ export default function Dashboard() {
                         Expected columns:
                       </p>
                       <code className="text-xs bg-white px-2 py-1 rounded border border-green-200">
-                        GROWER NO., First Name, Middle Name, Last Name, ID Number, Farmer Mobile Number (+ optional Buying Center, Route)
+                        Grower No. (or GROWER NO.), Farmer Name (or First/Middle/Last Name), ID No. (or ID Number), mobile number — optional: Buying Center, Route, date
                       </code>
                     </div>
 

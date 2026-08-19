@@ -6,8 +6,8 @@ import type { Farmer } from "@/lib/types";
 
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "1234";
-const ADMIN_PASSWORD = "admin123";
+const CLERK_PASSWORD = "TeaFactory2026";
+const ADMIN_PASSWORD = "AdminTea@2026";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -906,10 +906,10 @@ export default function Dashboard() {
       });
       return;
     }
-    if (!idForm.bank_account_number.trim() || !idForm.bank_name.trim()) {
+    if (!idBankPreview) {
       setIdMessage({
         type: "error",
-        text: "Bank account number and bank name are required.",
+        text: "Please take or upload a photo of the bank details.",
       });
       return;
     }
@@ -920,13 +920,13 @@ export default function Dashboard() {
         full_name: idForm.full_name.trim(),
         national_id: idForm.national_id.trim(),
         mobile_number: idForm.mobile_number.trim() || null,
-        grower_number: idForm.grower_number.trim() || null,
-        bank_account_number: idForm.bank_account_number.trim(),
-        bank_name: idForm.bank_name.trim(),
-        bank_branch: idForm.bank_branch.trim() || null,
+        grower_number: null,
+        bank_account_number: "See bank photo",
+        bank_name: "See bank photo",
+        bank_branch: null,
         id_front_image: idFrontPreview,
         id_back_image: idBackPreview,
-        bank_details_image: idBankPreview || null,
+        bank_details_image: idBankPreview,
         name_confirmed: true,
         captured_by: "clerk",
       };
@@ -1508,106 +1508,52 @@ export default function Dashboard() {
                         }
                       />
                     </div>
-                    <div>
-                      <label className="label">Grower Number</label>
-                      <input
-                        type="text"
-                        className="input"
-                        value={idForm.grower_number}
-                        onChange={(e) =>
-                          setIdForm({ ...idForm, grower_number: e.target.value })
-                        }
-                      />
-                    </div>
                   </div>
 
                   <div className="border-t border-green-100 pt-4">
-                    <h3 className="font-medium text-green-900 mb-3">
-                      Bank Account Details
+                    <h3 className="font-medium text-green-900 mb-1">
+                      Bank details photo <span className="text-red-500">*</span>
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="label">
-                          Account Number <span className="text-red-500">*</span>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Take a photo of the bank card, slip, or statement — or upload
+                      from the gallery. No need to type account number or bank name.
+                      You can crop the photo after capture.
+                    </p>
+                    <div className="space-y-2 rounded-xl border border-green-100 bg-white p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn-primary text-sm"
+                          onClick={() => openCamera("bank")}
+                        >
+                          Take photo
+                        </button>
+                        <label className="btn-outline text-sm cursor-pointer inline-block">
+                          From gallery
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleIdBankChange}
+                            className="hidden"
+                          />
                         </label>
-                        <input
-                          type="text"
-                          className="input"
-                          value={idForm.bank_account_number}
-                          onChange={(e) =>
-                            setIdForm({
-                              ...idForm,
-                              bank_account_number: e.target.value,
-                            })
-                          }
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="label">
-                          Bank Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="input"
-                          value={idForm.bank_name}
-                          onChange={(e) =>
-                            setIdForm({ ...idForm, bank_name: e.target.value })
-                          }
-                          placeholder="e.g. Equity, KCB, Co-op"
-                          required
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="label">Bank Branch</label>
-                        <input
-                          type="text"
-                          className="input"
-                          value={idForm.bank_branch}
-                          onChange={(e) =>
-                            setIdForm({ ...idForm, bank_branch: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="sm:col-span-2 space-y-2 rounded-xl border border-green-100 bg-white p-3">
-                        <label className="label">
-                          Bank details photo (card / slip / statement)
-                        </label>
-                        <div className="flex flex-wrap gap-2">
+                        {idBankPreview && (
                           <button
                             type="button"
-                            className="btn-primary text-sm"
-                            onClick={() => openCamera("bank")}
+                            className="text-sm px-3 py-1.5 rounded-lg border border-green-600 text-green-800"
+                            onClick={() => openCrop("bank", idBankPreview)}
                           >
-                            Take photo
+                            Crop background
                           </button>
-                          <label className="btn-outline text-sm cursor-pointer inline-block">
-                            From gallery
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleIdBankChange}
-                              className="hidden"
-                            />
-                          </label>
-                          {idBankPreview && (
-                            <button
-                              type="button"
-                              className="text-sm px-3 py-1.5 rounded-lg border border-green-600 text-green-800"
-                              onClick={() => openCrop("bank", idBankPreview)}
-                            >
-                              Crop background
-                            </button>
-                          )}
-                        </div>
-                        {idBankPreview && (
-                          <img
-                            src={idBankPreview}
-                            alt="Bank details"
-                            className="mt-2 rounded-lg border max-h-48 object-contain bg-gray-50 w-full"
-                          />
                         )}
                       </div>
+                      {idBankPreview && (
+                        <img
+                          src={idBankPreview}
+                          alt="Bank details"
+                          className="mt-2 rounded-lg border max-h-48 object-contain bg-gray-50 w-full"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -1755,28 +1701,9 @@ export default function Dashboard() {
                           <p className="text-xs text-gray-500 uppercase">National ID</p>
                           <p className="font-semibold">{idSavedRecord.national_id}</p>
                         </div>
-                        <div className="bg-white rounded-lg border border-green-100 p-3">
+                        <div className="bg-white rounded-lg border border-green-100 p-3 sm:col-span-2">
                           <p className="text-xs text-gray-500 uppercase">Mobile</p>
                           <p>{idSavedRecord.mobile_number || "—"}</p>
-                        </div>
-                        <div className="bg-white rounded-lg border border-green-100 p-3">
-                          <p className="text-xs text-gray-500 uppercase">Grower No</p>
-                          <p>{idSavedRecord.grower_number || "—"}</p>
-                        </div>
-                        <div className="bg-white rounded-lg border border-green-100 p-3">
-                          <p className="text-xs text-gray-500 uppercase">Bank Account</p>
-                          <p className="font-medium">
-                            {idSavedRecord.bank_account_number}
-                          </p>
-                        </div>
-                        <div className="bg-white rounded-lg border border-green-100 p-3">
-                          <p className="text-xs text-gray-500 uppercase">Bank</p>
-                          <p>
-                            {idSavedRecord.bank_name}
-                            {idSavedRecord.bank_branch
-                              ? ` — ${idSavedRecord.bank_branch}`
-                              : ""}
-                          </p>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

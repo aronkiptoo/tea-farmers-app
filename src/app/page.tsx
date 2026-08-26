@@ -6,8 +6,8 @@ import type { Farmer } from "@/lib/types";
 
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "Tea@Factory2030!";
-const ADMIN_PASSWORD = "AdminTea@2026";
+const CLERK_PASSWORD = "TeaFactory2026";
+const ADMIN_PASSWORD = "admin123";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -272,6 +272,12 @@ export default function Dashboard() {
       setSelectedIds([]);
     }
   }, [isAuthenticated, isAdminUnlocked, adminSubTab, fetchFarmers]);
+
+  useEffect(() => {
+    if (isAuthenticated && mainTab === "id_capture") {
+      fetchIdCaptures();
+    }
+  }, [isAuthenticated, mainTab]);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -879,6 +885,81 @@ export default function Dashboard() {
     setIdNameConfirmed(false);
     setIdSavedRecord(null);
     setIdMessage(null);
+    setIdViewMode("form");
+  };
+
+  const fetchIdCaptures = async () => {
+    setIdListLoading(true);
+    setIdListError("");
+    try {
+      let query = supabase
+        .from("id_captures")
+        .select("id, full_name, national_id, mobile_number, grower_number, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (idListSearch.trim()) {
+        const t = idListSearch.trim();
+        query = query.or(
+          `full_name.ilike.%${t}%,national_id.ilike.%${t}%,mobile_number.ilike.%${t}%`
+        );
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error(error);
+        setIdListError(error.message || "Failed to load ID captures.");
+        setIdCaptureList([]);
+      } else {
+        setIdCaptureList(data || []);
+      }
+    } catch (e) {
+      setIdListError("Could not load ID captures. Check connection.");
+      setIdCaptureList([]);
+    } finally {
+      setIdListLoading(false);
+    }
+  };
+
+  const openIdCaptureDetail = async (id: string) => {
+    setIdLoading(true);
+    setIdMessage(null);
+    try {
+      const { data, error } = await supabase
+        .from("id_captures")
+        .select(
+          "id, full_name, national_id, mobile_number, grower_number, bank_account_number, bank_name, bank_branch, id_front_image, id_back_image, bank_details_image, created_at"
+        )
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        setIdMessage({
+          type: "error",
+          text: error?.message || "Could not open this record.",
+        });
+      } else {
+        setIdSavedRecord({
+          id: data.id,
+          full_name: data.full_name,
+          national_id: data.national_id,
+          mobile_number: data.mobile_number || "",
+          grower_number: data.grower_number || "",
+          bank_account_number: data.bank_account_number || "",
+          bank_name: data.bank_name || "",
+          bank_branch: data.bank_branch || "",
+          front_preview: data.id_front_image || "",
+          back_preview: data.id_back_image || "",
+          bank_preview: data.bank_details_image || "",
+          created_at: data.created_at || "",
+        });
+        setIdViewMode("detail");
+      }
+    } catch {
+      setIdMessage({ type: "error", text: "Failed to load record." });
+    } finally {
+      setIdLoading(false);
+    }
   };
 
   const handleIdCaptureSubmit = async (e: React.FormEvent) => {
@@ -959,8 +1040,10 @@ export default function Dashboard() {
         });
         setIdMessage({
           type: "success",
-          text: "ID capture saved successfully. You can print or download the PDF below.",
+          text: "ID capture saved successfully. You can print or download the PDF below. It is now in the shared list.",
         });
+        setIdViewMode("detail");
+        fetchIdCaptures();
       }
     } catch {
       setIdMessage({ type: "error", text: "Something went wrong while saving." });
@@ -1446,9 +1529,42 @@ export default function Dashboard() {
                   Farmer Registration — ID Capture
                 </h2>
                 <p className="text-sm text-green-100 mt-1">
-                  Capture ID front &amp; back, bank details, and photos. After each
-                  photo you can crop out unwanted background. Then download a PDF.
+                  Capture ID and bank photos, save a PDF, and browse all records
+                  shared with everyone.
                 </p>
+              </div>
+
+              <div className="px-4 pt-4 flex flex-wrap gap-2 border-b border-green-100 bg-white">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdViewMode("form");
+                    setIdSavedRecord(null);
+                    setIdMessage(null);
+                  }}
+                  className={`px-4 py-2 text-sm rounded-t-lg font-medium ${
+                    idViewMode === "form"
+                      ? "bg-green-700 text-white"
+                      : "bg-green-50 text-green-900"
+                  }`}
+                >
+                  New capture
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdViewMode("list");
+                    setIdSavedRecord(null);
+                    fetchIdCaptures();
+                  }}
+                  className={`px-4 py-2 text-sm rounded-t-lg font-medium ${
+                    idViewMode === "list"
+                      ? "bg-green-700 text-white"
+                      : "bg-green-50 text-green-900"
+                  }`}
+                >
+                  All captures ({idCaptureList.length})
+                </button>
               </div>
 
               <div className="p-6">
@@ -1464,7 +1580,123 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {!idSavedRecord ? (
+              {idViewMode === "list" && !idSavedRecord && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        Shared ID capture records
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        Everyone can open a record and download / print the PDF.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        className="input max-w-xs"
+                        placeholder="Search name or ID..."
+                        value={idListSearch}
+                        onChange={(e) => setIdListSearch(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={fetchIdCaptures}
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => {
+                          setIdViewMode("form");
+                          setIdSavedRecord(null);
+                        }}
+                      >
+                        New capture
+                      </button>
+                    </div>
+                  </div>
+
+                  {idListError && (
+                    <div className="rounded-xl p-3 text-sm bg-red-50 text-red-700 border border-red-200">
+                      {idListError}
+                      <p className="text-xs mt-1">
+                        If this persists, run in Supabase SQL:{" "}
+                        <code>alter table public.id_captures disable row level security;</code>
+                      </p>
+                    </div>
+                  )}
+
+                  {idListLoading ? (
+                    <div className="flex justify-center py-12">
+                      <div className="loader" />
+                    </div>
+                  ) : idCaptureList.length === 0 ? (
+                    <p className="text-center text-gray-500 py-10 text-sm">
+                      No ID captures saved yet. Use &quot;New capture&quot; to add one.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto border rounded-xl">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-green-50">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left font-medium text-gray-600">
+                              Date
+                            </th>
+                            <th className="px-3 py-2.5 text-left font-medium text-gray-600">
+                              Full Name
+                            </th>
+                            <th className="px-3 py-2.5 text-left font-medium text-gray-600">
+                              National ID
+                            </th>
+                            <th className="px-3 py-2.5 text-left font-medium text-gray-600">
+                              Mobile
+                            </th>
+                            <th className="px-3 py-2.5 text-right font-medium text-gray-600">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {idCaptureList.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="border-t hover:bg-green-50/50"
+                            >
+                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                                {row.created_at
+                                  ? new Date(row.created_at).toLocaleString()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {row.full_name}
+                              </td>
+                              <td className="px-3 py-2">{row.national_id}</td>
+                              <td className="px-3 py-2">
+                                {row.mobile_number || "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  type="button"
+                                  className="text-sm px-3 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-800"
+                                  onClick={() => openIdCaptureDetail(row.id)}
+                                  disabled={idLoading}
+                                >
+                                  View / PDF
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {idViewMode === "form" && !idSavedRecord && (
                 <form onSubmit={handleIdCaptureSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1671,7 +1903,9 @@ export default function Dashboard() {
                     {idLoading ? "Saving..." : "Save & generate PDF"}
                   </button>
                 </form>
-              ) : (
+              )}
+
+              {(idViewMode === "detail" || idSavedRecord) && idSavedRecord && (
                 <div className="space-y-4">
                   <div
                     id="id-capture-print"
@@ -1752,8 +1986,26 @@ export default function Dashboard() {
                     <button type="button" onClick={handlePrintIdCapture} className="btn-secondary">
                       Print
                     </button>
-                    <button type="button" onClick={resetIdForm} className="btn-outline">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetIdForm();
+                        setIdViewMode("form");
+                      }}
+                      className="btn-outline"
+                    >
                       Capture another
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdSavedRecord(null);
+                        setIdViewMode("list");
+                        fetchIdCaptures();
+                      }}
+                      className="btn-secondary"
+                    >
+                      Back to all captures
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 print:hidden">

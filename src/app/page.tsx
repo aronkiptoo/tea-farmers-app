@@ -84,6 +84,7 @@ export default function Dashboard() {
     national_id: "",
     mobile_number: "",
     grower_number: "",
+    buying_center: "",
     bank_account_number: "",
     bank_name: "",
     bank_branch: "",
@@ -121,6 +122,7 @@ export default function Dashboard() {
     national_id: string;
     mobile_number: string;
     grower_number: string;
+    buying_center: string;
     bank_account_number: string;
     bank_name: string;
     bank_branch: string;
@@ -136,6 +138,7 @@ export default function Dashboard() {
     national_id: string;
     mobile_number: string | null;
     grower_number: string | null;
+    buying_center: string | null;
     created_at: string;
   };
 
@@ -887,6 +890,7 @@ export default function Dashboard() {
       national_id: "",
       mobile_number: "",
       grower_number: "",
+      buying_center: "",
       bank_account_number: "",
       bank_name: "",
       bank_branch: "",
@@ -909,14 +913,14 @@ export default function Dashboard() {
     try {
       let query = supabase
         .from("id_captures")
-        .select("id, full_name, national_id, mobile_number, grower_number, created_at")
+        .select("id, full_name, national_id, mobile_number, grower_number, buying_center, created_at")
         .order("created_at", { ascending: false })
         .limit(200);
 
       if (idListSearch.trim()) {
         const t = idListSearch.trim();
         query = query.or(
-          `full_name.ilike.%${t}%,national_id.ilike.%${t}%,mobile_number.ilike.%${t}%`
+          `full_name.ilike.%${t}%,national_id.ilike.%${t}%,mobile_number.ilike.%${t}%,buying_center.ilike.%${t}%`
         );
       }
 
@@ -943,7 +947,7 @@ export default function Dashboard() {
       const { data, error } = await supabase
         .from("id_captures")
         .select(
-          "id, full_name, national_id, mobile_number, grower_number, bank_account_number, bank_name, bank_branch, id_front_image, id_back_image, bank_details_image, created_at"
+          "id, full_name, national_id, mobile_number, grower_number, buying_center, bank_account_number, bank_name, bank_branch, id_front_image, id_back_image, bank_details_image, created_at"
         )
         .eq("id", id)
         .single();
@@ -960,6 +964,7 @@ export default function Dashboard() {
           national_id: data.national_id,
           mobile_number: data.mobile_number || "",
           grower_number: data.grower_number || "",
+          buying_center: data.buying_center || "",
           bank_account_number: data.bank_account_number || "",
           bank_name: data.bank_name || "",
           bank_branch: data.bank_branch || "",
@@ -1017,6 +1022,7 @@ export default function Dashboard() {
         national_id: idForm.national_id.trim(),
         mobile_number: idForm.mobile_number.trim() || null,
         grower_number: null,
+        buying_center: idForm.buying_center.trim() || null,
         bank_account_number: "See bank photo",
         bank_name: "See bank photo",
         bank_branch: null,
@@ -1045,6 +1051,7 @@ export default function Dashboard() {
           national_id: payload.national_id,
           mobile_number: payload.mobile_number || "",
           grower_number: payload.grower_number || "",
+          buying_center: payload.buying_center || "",
           bank_account_number: payload.bank_account_number,
           bank_name: payload.bank_name,
           bank_branch: payload.bank_branch || "",
@@ -1669,6 +1676,9 @@ export default function Dashboard() {
                             <th className="px-3 py-2.5 text-left font-medium text-gray-600">
                               Mobile
                             </th>
+                            <th className="px-3 py-2.5 text-left font-medium text-gray-600">
+                              Buying Center
+                            </th>
                             <th className="px-3 py-2.5 text-right font-medium text-gray-600">
                               Actions
                             </th>
@@ -1691,6 +1701,9 @@ export default function Dashboard() {
                               <td className="px-3 py-2">{row.national_id}</td>
                               <td className="px-3 py-2">
                                 {row.mobile_number || "—"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {row.buying_center || "—"}
                               </td>
                               <td className="px-3 py-2 text-right">
                                 <button
@@ -1753,6 +1766,18 @@ export default function Dashboard() {
                         onChange={(e) =>
                           setIdForm({ ...idForm, mobile_number: e.target.value })
                         }
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Buying Center</label>
+                      <input
+                        type="text"
+                        className="input"
+                        value={idForm.buying_center}
+                        onChange={(e) =>
+                          setIdForm({ ...idForm, buying_center: e.target.value })
+                        }
+                        placeholder="e.g. CENTER 000, KIMARGIS"
                       />
                     </div>
                   </div>
@@ -1950,9 +1975,13 @@ export default function Dashboard() {
                           <p className="text-xs text-gray-500 uppercase">National ID</p>
                           <p className="font-semibold">{idSavedRecord.national_id}</p>
                         </div>
-                        <div className="bg-white rounded-lg border border-green-100 p-3 sm:col-span-2">
+                        <div className="bg-white rounded-lg border border-green-100 p-3">
                           <p className="text-xs text-gray-500 uppercase">Mobile</p>
                           <p>{idSavedRecord.mobile_number || "—"}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border border-green-100 p-3">
+                          <p className="text-xs text-gray-500 uppercase">Buying Center</p>
+                          <p>{idSavedRecord.buying_center || "—"}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

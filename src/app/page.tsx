@@ -6,8 +6,8 @@ import type { Farmer } from "@/lib/types";
 
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "TeaFactory2026";
-const ADMIN_PASSWORD = "admin123";
+const CLERK_PASSWORD = "Tea@Factory2030!";
+const ADMIN_PASSWORD = "AdminTea@2026";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -129,6 +129,21 @@ export default function Dashboard() {
     bank_preview: string;
     created_at: string;
   } | null>(null);
+
+  type IdCaptureListItem = {
+    id: string;
+    full_name: string;
+    national_id: string;
+    mobile_number: string | null;
+    grower_number: string | null;
+    created_at: string;
+  };
+
+  const [idCaptureList, setIdCaptureList] = useState<IdCaptureListItem[]>([]);
+  const [idListLoading, setIdListLoading] = useState(false);
+  const [idListSearch, setIdListSearch] = useState("");
+  const [idListError, setIdListError] = useState("");
+  const [idViewMode, setIdViewMode] = useState<"form" | "list" | "detail">("list");
 
   // ── Session (auto-login) ────────────────────────────────────────
   useEffect(() => {

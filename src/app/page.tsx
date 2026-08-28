@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Farmer } from "@/lib/types";
 
+const SYSTEM_CLOSED =
+  (process.env.NEXT_PUBLIC_SYSTEM_CLOSED || "false").toLowerCase() === "true";
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "Tea@Factory2030!";
-const ADMIN_PASSWORD = "AdminTea@2026";
+const CLERK_PASSWORD = "1234";
+const ADMIN_PASSWORD = "admin123";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -714,12 +716,49 @@ export default function Dashboard() {
 
 
   // ── ID Capture helpers ──────────────────────────────────────────
+  /** Read file then resize to full image (no crop) for reliable upload */
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        const raw = reader.result as string;
+        normalizeFullImage(raw).then(resolve).catch(() => resolve(raw));
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+
+  /** Keep the whole photo; only shrink if very large so upload does not fail */
+  const normalizeFullImage = (dataUrl: string, maxSide = 1600, quality = 0.9): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w < 1 || h < 1) {
+          resolve(dataUrl);
+          return;
+        }
+        if (w > maxSide || h > maxSide) {
+          const r = Math.min(maxSide / w, maxSide / h);
+          w = Math.round(w * r);
+          h = Math.round(h * r);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
     });
 
   const openCrop = (target: "front" | "back" | "bank", source: string) => {
@@ -736,29 +775,47 @@ export default function Dashboard() {
     if (!cropSource || !cropTarget) return;
     const img = new Image();
     img.onload = () => {
-      // Output square-ish document crop from center with zoom/pan
-      const outW = 1200;
-      const outH = 750;
-      const canvas = document.createElement("canvas");
-      canvas.width = outW;
-      canvas.height = outH;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      // Keep full photo by default (zoom 1, no offset) — only trim if user zooms/pans
+      const maxSide = 1600;
+      let outW = img.width;
+      let outH = img.height;
+      if (outW > maxSide || outH > maxSide) {
+        const r = Math.min(maxSide / outW, maxSide / outH);
+        outW = Math.round(outW * r);
+        outH = Math.round(outH * r);
+      }
 
-      const scale = Math.max(outW / img.width, outH / img.height) * cropZoom;
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      const dx = (outW - drawW) / 2 + cropOffsetX;
-      const dy = (outH - drawH) / 2 + cropOffsetY;
-
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, outW, outH);
-      ctx.drawImage(img, dx, dy, drawW, drawH);
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-      if (cropTarget === "front") setIdFrontPreview(dataUrl);
-      if (cropTarget === "back") setIdBackPreview(dataUrl);
-      if (cropTarget === "bank") setIdBankPreview(dataUrl);
+      // If user zoomed, crop a centered window of the original
+      if (cropZoom > 1.02 || cropOffsetX !== 0 || cropOffsetY !== 0) {
+        const viewW = img.width / cropZoom;
+        const viewH = img.height / cropZoom;
+        const cx = img.width / 2 - cropOffsetX * (img.width / 600);
+        const cy = img.height / 2 - cropOffsetY * (img.height / 600);
+        let sx = Math.max(0, Math.min(img.width - viewW, cx - viewW / 2));
+        let sy = Math.max(0, Math.min(img.height - viewH, cy - viewH / 2));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(viewW);
+        canvas.height = Math.round(viewH);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, sx, sy, viewW, viewH, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        if (cropTarget === "front") setIdFrontPreview(dataUrl);
+        if (cropTarget === "back") setIdBackPreview(dataUrl);
+        if (cropTarget === "bank") setIdBankPreview(dataUrl);
+      } else {
+        // Full image, optionally resized for storage size
+        const canvas = document.createElement("canvas");
+        canvas.width = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, outW, outH);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        if (cropTarget === "front") setIdFrontPreview(dataUrl);
+        if (cropTarget === "back") setIdBackPreview(dataUrl);
+        if (cropTarget === "bank") setIdBankPreview(dataUrl);
+      }
       setCropOpen(false);
       setCropTarget(null);
       setCropSource("");
@@ -818,27 +875,20 @@ export default function Dashboard() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    if (cameraTarget === "front") {
-      setIdFrontPreview(dataUrl);
-      setIdFrontFile(null);
+    const raw = canvas.toDataURL("image/jpeg", 0.92);
+    normalizeFullImage(raw).then((dataUrl) => {
+      if (cameraTarget === "front") {
+        setIdFrontPreview(dataUrl);
+        setIdFrontFile(null);
+      } else if (cameraTarget === "back") {
+        setIdBackPreview(dataUrl);
+        setIdBackFile(null);
+      } else if (cameraTarget === "bank") {
+        setIdBankPreview(dataUrl);
+        setIdBankFile(null);
+      }
       closeCamera();
-      openCrop("front", dataUrl);
-      return;
-    } else if (cameraTarget === "back") {
-      setIdBackPreview(dataUrl);
-      setIdBackFile(null);
-      closeCamera();
-      openCrop("back", dataUrl);
-      return;
-    } else if (cameraTarget === "bank") {
-      setIdBankPreview(dataUrl);
-      setIdBankFile(null);
-      closeCamera();
-      openCrop("bank", dataUrl);
-      return;
-    }
-    closeCamera();
+    });
   };
 
   const handleIdFrontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -851,7 +901,6 @@ export default function Dashboard() {
     setIdFrontFile(file);
     const url = await fileToDataUrl(file);
     setIdFrontPreview(url);
-    openCrop("front", url);
   };
 
   const handleIdBackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -864,7 +913,6 @@ export default function Dashboard() {
     setIdBackFile(file);
     const url = await fileToDataUrl(file);
     setIdBackPreview(url);
-    openCrop("back", url);
   };
 
   const handleIdBankChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -880,7 +928,6 @@ export default function Dashboard() {
     setIdBankFile(file);
     const url = await fileToDataUrl(file);
     setIdBankPreview(url);
-    openCrop("bank", url);
   };
 
   const resetIdForm = () => {
@@ -1200,6 +1247,36 @@ export default function Dashboard() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-green-50">
         <div className="loader" />
         <p className="text-green-800 font-medium">Loading...</p>
+      </div>
+    );
+  }
+
+  // ── SYSTEM CLOSED (maintenance / shutdown) ──────────────────────
+  if (SYSTEM_CLOSED) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-gray-800 to-gray-950">
+        <div className="card p-8 w-full max-w-md shadow-xl text-center">
+          <div className="w-28 h-20 mx-auto mb-4 flex items-center justify-center">
+            <img
+              src="/logo.png"
+              alt="Chebango Logo"
+              className="max-h-20 object-contain"
+            />
+          </div>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center text-3xl">
+            🔒
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">
+            System is closed
+          </h1>
+          <p className="text-gray-600 text-sm leading-relaxed mb-4">
+            The Farmers Portal is currently closed and not available for use.
+            Please contact the factory administration for more information.
+          </p>
+          <p className="text-xs text-gray-400">
+            {FACTORY_NAME}
+          </p>
+        </div>
       </div>
     );
   }
@@ -1787,9 +1864,8 @@ export default function Dashboard() {
                       Bank details photo <span className="text-red-500">*</span>
                     </h3>
                     <p className="text-xs text-gray-500 mb-3">
-                      Take a photo of the bank card, slip, or statement — or upload
-                      from the gallery. No need to type account number or bank name.
-                      You can crop the photo after capture.
+                      Take or upload the full photo of the bank card, slip, or statement.
+                      The whole picture is saved. Use Crop only if you need to trim edges.
                     </p>
                     <div className="space-y-2 rounded-xl border border-green-100 bg-white p-3">
                       <div className="flex flex-wrap gap-2">
@@ -1823,7 +1899,7 @@ export default function Dashboard() {
                         <img
                           src={idBankPreview}
                           alt="Bank details"
-                          className="mt-2 rounded-lg border max-h-48 object-contain bg-gray-50 w-full"
+                          className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
                         />
                       )}
                     </div>
@@ -1834,8 +1910,8 @@ export default function Dashboard() {
                       National ID photos
                     </h3>
                     <p className="text-xs text-gray-500 mb-3">
-                      After taking or uploading a photo, use <strong>Crop background</strong>{" "}
-                      to keep only the ID card and remove extra background.
+                      The full photo is kept by default. Only click{" "}
+                      <strong>Crop background</strong> if you need to trim extra edges.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2 rounded-xl border border-green-100 bg-white p-3">
@@ -1873,7 +1949,7 @@ export default function Dashboard() {
                           <img
                             src={idFrontPreview}
                             alt="ID Front"
-                            className="mt-2 rounded-lg border max-h-52 object-contain bg-gray-50 w-full"
+                            className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
                           />
                         )}
                       </div>
@@ -1912,7 +1988,7 @@ export default function Dashboard() {
                           <img
                             src={idBackPreview}
                             alt="ID Back"
-                            className="mt-2 rounded-lg border max-h-52 object-contain bg-gray-50 w-full"
+                            className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
                           />
                         )}
                       </div>
@@ -1984,7 +2060,7 @@ export default function Dashboard() {
                           <p>{idSavedRecord.buying_center || "—"}</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 id-print-photos">
                         <div className="bg-white rounded-lg border border-green-200 p-3">
                           <p className="text-xs text-green-800 font-medium uppercase mb-2">
                             ID Front
@@ -1992,7 +2068,7 @@ export default function Dashboard() {
                           <img
                             src={idSavedRecord.front_preview}
                             alt="ID Front"
-                            className="rounded border max-h-56 object-contain w-full bg-gray-50"
+                            className="id-print-img rounded border object-contain w-full bg-gray-50"
                           />
                         </div>
                         <div className="bg-white rounded-lg border border-green-200 p-3">
@@ -2002,7 +2078,7 @@ export default function Dashboard() {
                           <img
                             src={idSavedRecord.back_preview}
                             alt="ID Back"
-                            className="rounded border max-h-56 object-contain w-full bg-gray-50"
+                            className="id-print-img rounded border object-contain w-full bg-gray-50"
                           />
                         </div>
                         {idSavedRecord.bank_preview && (
@@ -2013,7 +2089,7 @@ export default function Dashboard() {
                             <img
                               src={idSavedRecord.bank_preview}
                               alt="Bank"
-                              className="rounded border max-h-56 object-contain w-full bg-gray-50"
+                              className="id-print-img id-print-img-bank rounded border object-contain w-full bg-gray-50"
                             />
                           </div>
                         )}

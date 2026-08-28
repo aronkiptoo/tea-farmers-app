@@ -8,7 +8,7 @@ const SYSTEM_CLOSED =
   (process.env.NEXT_PUBLIC_SYSTEM_CLOSED || "false").toLowerCase() === "true";
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "Tea@Factory2030!";
+const CLERK_PASSWORD = "TeaFactory2026";
 const ADMIN_PASSWORD = "AdminTea@2026";
 
 // ── Placeholder content (replace later with real data) ──────────────

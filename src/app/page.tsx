@@ -8,8 +8,10 @@ const SYSTEM_CLOSED =
   (process.env.NEXT_PUBLIC_SYSTEM_CLOSED || "false").toLowerCase() === "true";
 const FACTORY_NAME =
   process.env.NEXT_PUBLIC_FACTORY_NAME || "Chebango EPZ Tea Factory";
-const CLERK_PASSWORD = "TeaFactory2026";
-const ADMIN_PASSWORD = "AdminTea@2026";
+const CLERK_PASSWORD =
+  process.env.NEXT_PUBLIC_CLERK_PASSWORD || "TeaFactory2026";
+const ADMIN_PASSWORD =
+  process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "AdminTea@2026";
 
 // ── Placeholder content (replace later with real data) ──────────────
 const FACTORY_INFO = {
@@ -761,6 +763,11 @@ export default function Dashboard() {
       img.src = dataUrl;
     });
 
+  // Professional crop: fixed frame (ID card ratio) — what you see is what is saved
+  // Kenya ID ≈ 85.6 × 54 mm → aspect ~ 1.586
+  const CROP_FRAME_W = 640;
+  const CROP_FRAME_H = 404; // 640 / 1.586
+
   const openCrop = (target: "front" | "back" | "bank", source: string) => {
     if (!source) return;
     setCropTarget(target);
@@ -775,47 +782,70 @@ export default function Dashboard() {
     if (!cropSource || !cropTarget) return;
     const img = new Image();
     img.onload = () => {
-      // Keep full photo by default (zoom 1, no offset) — only trim if user zooms/pans
-      const maxSide = 1600;
-      let outW = img.width;
-      let outH = img.height;
-      if (outW > maxSide || outH > maxSide) {
-        const r = Math.min(maxSide / outW, maxSide / outH);
-        outW = Math.round(outW * r);
-        outH = Math.round(outH * r);
+      const frameW = CROP_FRAME_W;
+      const frameH =
+        cropTarget === "bank" ? Math.round(CROP_FRAME_W / 1.4) : CROP_FRAME_H;
+
+      // Scale so image covers the frame (object-fit: cover), then apply user zoom
+      const cover = Math.max(frameW / img.width, frameH / img.height);
+      const scale = cover * Math.max(1, cropZoom);
+
+      // Same placement as the on-screen preview
+      const drawW = img.width * scale;
+      const drawH = img.height * scale;
+      const dx = (frameW - drawW) / 2 + cropOffsetX;
+      const dy = (frameH - drawH) / 2 + cropOffsetY;
+
+      // Map the frame rectangle back to source image pixels
+      let sx = (0 - dx) / scale;
+      let sy = (0 - dy) / scale;
+      let sw = frameW / scale;
+      let sh = frameH / scale;
+
+      // Clamp to image bounds (keeps full available detail)
+      if (sx < 0) {
+        sw += sx;
+        sx = 0;
+      }
+      if (sy < 0) {
+        sh += sy;
+        sy = 0;
+      }
+      if (sx + sw > img.width) sw = img.width - sx;
+      if (sy + sh > img.height) sh = img.height - sy;
+      sx = Math.max(0, sx);
+      sy = Math.max(0, sy);
+      sw = Math.max(1, sw);
+      sh = Math.max(1, sh);
+
+      // High-resolution output — long side at least 1600px so text stays readable
+      const outLong = 1600;
+      const aspect = sw / sh;
+      let outW: number;
+      let outH: number;
+      if (aspect >= 1) {
+        outW = outLong;
+        outH = Math.round(outLong / aspect);
+      } else {
+        outH = outLong;
+        outW = Math.round(outLong * aspect);
       }
 
-      // If user zoomed, crop a centered window of the original
-      if (cropZoom > 1.02 || cropOffsetX !== 0 || cropOffsetY !== 0) {
-        const viewW = img.width / cropZoom;
-        const viewH = img.height / cropZoom;
-        const cx = img.width / 2 - cropOffsetX * (img.width / 600);
-        const cy = img.height / 2 - cropOffsetY * (img.height / 600);
-        let sx = Math.max(0, Math.min(img.width - viewW, cx - viewW / 2));
-        let sy = Math.max(0, Math.min(img.height - viewH, cy - viewH / 2));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(viewW);
-        canvas.height = Math.round(viewH);
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(img, sx, sy, viewW, viewH, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        if (cropTarget === "front") setIdFrontPreview(dataUrl);
-        if (cropTarget === "back") setIdBackPreview(dataUrl);
-        if (cropTarget === "bank") setIdBankPreview(dataUrl);
-      } else {
-        // Full image, optionally resized for storage size
-        const canvas = document.createElement("canvas");
-        canvas.width = outW;
-        canvas.height = outH;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, outW, outH);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        if (cropTarget === "front") setIdFrontPreview(dataUrl);
-        if (cropTarget === "back") setIdBackPreview(dataUrl);
-        if (cropTarget === "bank") setIdBankPreview(dataUrl);
-      }
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      if (cropTarget === "front") setIdFrontPreview(dataUrl);
+      if (cropTarget === "back") setIdBackPreview(dataUrl);
+      if (cropTarget === "bank") setIdBankPreview(dataUrl);
       setCropOpen(false);
       setCropTarget(null);
       setCropSource("");
@@ -2827,49 +2857,78 @@ export default function Dashboard() {
 
 
       
-      {/* Crop modal — remove unwanted background */}
+      {/* Crop modal — professional frame crop (WYSIWYG) */}
       {cropOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-3">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h3 className="font-semibold text-green-900">
-                Crop — keep only the needed part
-              </h3>
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  Crop{" "}
+                  {cropTarget === "front"
+                    ? "ID front"
+                    : cropTarget === "back"
+                      ? "ID back"
+                      : "bank details"}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Fit the full document inside the green frame. Everything inside
+                  the frame is saved at high quality.
+                </p>
+              </div>
               <button
                 type="button"
-                className="text-sm text-gray-500"
+                className="text-gray-500 hover:text-gray-800 text-sm"
                 onClick={() => {
                   setCropOpen(false);
                   setCropTarget(null);
                 }}
               >
-                Cancel
+                Close
               </button>
             </div>
-            <div className="bg-gray-900 aspect-[4/3] relative overflow-hidden flex items-center justify-center">
+            <div
+              className="relative mx-auto bg-gray-900 overflow-hidden"
+              style={{
+                width: "100%",
+                maxWidth: CROP_FRAME_W,
+                aspectRatio:
+                  cropTarget === "bank"
+                    ? "1.4 / 1"
+                    : `${CROP_FRAME_W} / ${CROP_FRAME_H}`,
+              }}
+            >
               {cropSource && (
                 <img
                   src={cropSource}
-                  alt="Crop"
-                  className="max-w-none"
+                  alt="Crop preview"
+                  draggable={false}
+                  className="absolute left-1/2 top-1/2 max-w-none select-none"
                   style={{
-                    transform: `translate(${cropOffsetX * 0.3}px, ${cropOffsetY * 0.3}px) scale(${cropZoom})`,
-                    maxHeight: "100%",
-                    maxWidth: "100%",
-                    objectFit: "contain",
+                    transform: `translate(calc(-50% + ${cropOffsetX}px), calc(-50% + ${cropOffsetY}px)) scale(${cropZoom})`,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
                   }}
                 />
               )}
-              <div className="pointer-events-none absolute inset-6 border-2 border-green-400 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+              <div className="pointer-events-none absolute inset-0 border-[3px] border-green-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="text-[10px] uppercase tracking-wider text-green-200 bg-black/40 px-2 py-0.5 rounded">
+                  Keep full ID inside this frame
+                </span>
+              </div>
             </div>
             <div className="p-4 space-y-3">
               <div>
-                <label className="text-xs text-gray-600">Zoom (crop tighter)</label>
+                <label className="text-xs text-gray-600">
+                  Zoom — make the ID fill the frame
+                </label>
                 <input
                   type="range"
                   min={1}
                   max={3}
-                  step={0.05}
+                  step={0.02}
                   value={cropZoom}
                   onChange={(e) => setCropZoom(Number(e.target.value))}
                   className="w-full"
@@ -2879,9 +2938,9 @@ export default function Dashboard() {
                 <label className="text-xs text-gray-600">Move left / right</label>
                 <input
                   type="range"
-                  min={-300}
-                  max={300}
-                  step={5}
+                  min={-200}
+                  max={200}
+                  step={2}
                   value={cropOffsetX}
                   onChange={(e) => setCropOffsetX(Number(e.target.value))}
                   className="w-full"
@@ -2891,15 +2950,26 @@ export default function Dashboard() {
                 <label className="text-xs text-gray-600">Move up / down</label>
                 <input
                   type="range"
-                  min={-300}
-                  max={300}
-                  step={5}
+                  min={-200}
+                  max={200}
+                  step={2}
                   value={cropOffsetY}
                   onChange={(e) => setCropOffsetY(Number(e.target.value))}
                   className="w-full"
                 />
               </div>
-              <div className="flex gap-2 justify-end pt-1">
+              <div className="flex flex-wrap gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setCropZoom(1);
+                    setCropOffsetX(0);
+                    setCropOffsetY(0);
+                  }}
+                >
+                  Reset
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -2908,15 +2978,15 @@ export default function Dashboard() {
                     setCropTarget(null);
                   }}
                 >
-                  Skip crop
+                  Skip (keep full photo)
                 </button>
                 <button type="button" className="btn-primary" onClick={applyCrop}>
                   Apply crop
                 </button>
               </div>
               <p className="text-xs text-gray-500">
-                Zoom in and move the image so only the ID card (or bank document)
-                sits inside the green frame. Extra background is cut off.
+                Tip: Zoom until all four corners of the ID are inside the green
+                frame. Do not zoom so tight that names or ID numbers are cut off.
               </p>
             </div>
           </div>

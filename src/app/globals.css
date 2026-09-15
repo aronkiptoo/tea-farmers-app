@@ -74,7 +74,10 @@ body {
 }
 
 .id-print-img-bank {
-  max-height: 240px;
+  max-height: 200px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 /* Print: fit everything on 1–2 pages, full document visible */
@@ -127,9 +130,12 @@ body {
     object-fit: contain !important;
   }
   .id-print-img-bank {
-    max-height: 70mm !important;
-    width: 100% !important;
+    max-height: 45mm !important;
+    max-width: 160mm !important;
+    width: auto !important;
     height: auto !important;
+    margin: 0 auto !important;
+    display: block !important;
     object-fit: contain !important;
   }
   #id-capture-print img {

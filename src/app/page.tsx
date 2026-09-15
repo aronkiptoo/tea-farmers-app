@@ -1929,7 +1929,7 @@ export default function Dashboard() {
                         <img
                           src={idBankPreview}
                           alt="Bank details"
-                          className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
+                          className="id-form-preview mt-2 rounded-lg border border-gray-200"
                         />
                       )}
                     </div>
@@ -1979,7 +1979,7 @@ export default function Dashboard() {
                           <img
                             src={idFrontPreview}
                             alt="ID Front"
-                            className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
+                            className="id-form-preview mt-2 rounded-lg border border-gray-200"
                           />
                         )}
                       </div>
@@ -2018,7 +2018,7 @@ export default function Dashboard() {
                           <img
                             src={idBackPreview}
                             alt="ID Back"
-                            className="mt-2 rounded-lg border max-h-64 object-contain bg-gray-50 w-full"
+                            className="id-form-preview mt-2 rounded-lg border border-gray-200"
                           />
                         )}
                       </div>

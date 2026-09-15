@@ -30,7 +30,6 @@ body {
   @apply block text-sm font-medium text-gray-700 mb-1;
 }
 
-/* Green theme loader */
 .loader {
   width: 48px;
   height: 48px;
@@ -54,8 +53,37 @@ body {
   @apply text-gray-600 hover:bg-green-50;
 }
 
-/* Print styles for ID Capture PDF */
+/* Screen previews — show full photo without looking like a thin strip */
+.id-form-preview {
+  width: 100%;
+  max-height: 220px;
+  min-height: 120px;
+  object-fit: contain;
+  object-position: center;
+  background: #f3f4f6;
+  border-radius: 0.5rem;
+}
+
+.id-print-img {
+  max-height: 220px;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  background: #f9fafb;
+}
+
+.id-print-img-bank {
+  max-height: 240px;
+}
+
+/* Print: fit everything on 1–2 pages, full document visible */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -68,9 +96,51 @@ body {
     left: 0;
     top: 0;
     width: 100%;
-    padding: 16px;
+    padding: 0;
+    background: white;
+    color: black;
   }
   .print\:hidden {
     display: none !important;
+  }
+
+  #id-capture-print .id-print-photos {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #id-capture-print .id-print-photos > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0;
+    padding: 6px !important;
+  }
+  /* Bank photo spans full width under the two ID sides */
+  #id-capture-print .id-print-photos > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .id-print-img {
+    max-height: 55mm !important;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+  .id-print-img-bank {
+    max-height: 70mm !important;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+  #id-capture-print img {
+    max-width: 100% !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #id-capture-print h3 {
+    font-size: 14pt !important;
+  }
+  #id-capture-print p {
+    font-size: 9pt !important;
   }
 }

@@ -899,13 +899,55 @@ export default function Dashboard() {
   const snapCameraPhoto = () => {
     const video = videoRef.current;
     if (!video) return;
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+
+    // Guide frame matches on-screen overlay (centered ID-card shape)
+    // Front/back: ~1.586 aspect (Kenya ID). Bank: slightly taller area.
+    const targetAspect =
+      cameraTarget === "bank" ? 1.4 : 1.586;
+    let cropW: number;
+    let cropH: number;
+    if (vw / vh > targetAspect) {
+      // video is wider than frame — limit by height
+      cropH = vh * 0.72;
+      cropW = cropH * targetAspect;
+    } else {
+      cropW = vw * 0.78;
+      cropH = cropW / targetAspect;
+    }
+    if (cropW > vw) {
+      cropW = vw;
+      cropH = cropW / targetAspect;
+    }
+    if (cropH > vh) {
+      cropH = vh;
+      cropW = cropH * targetAspect;
+    }
+    const sx = (vw - cropW) / 2;
+    const sy = (vh - cropH) / 2;
+
+    const outLong = 1600;
+    const aspect = cropW / cropH;
+    let outW: number;
+    let outH: number;
+    if (aspect >= 1) {
+      outW = outLong;
+      outH = Math.round(outLong / aspect);
+    } else {
+      outH = outLong;
+      outW = Math.round(outLong * aspect);
+    }
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.width = outW;
+    canvas.height = outH;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const raw = canvas.toDataURL("image/jpeg", 0.92);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, outW, outH);
+    const raw = canvas.toDataURL("image/jpeg", 0.95);
     normalizeFullImage(raw).then((dataUrl) => {
       if (cameraTarget === "front") {
         setIdFrontPreview(dataUrl);
@@ -3013,7 +3055,7 @@ export default function Dashboard() {
                 Close
               </button>
             </div>
-            <div className="bg-black aspect-video relative">
+            <div className="bg-black aspect-video relative overflow-hidden">
               <video
                 ref={videoRef}
                 autoPlay
@@ -3021,6 +3063,30 @@ export default function Dashboard() {
                 muted
                 className="w-full h-full object-cover"
               />
+              {/* Guide frame — align ID / bank card inside the box */}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div
+                  className="relative border-[3px] border-red-500 rounded-sm shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
+                  style={{
+                    width:
+                      cameraTarget === "bank" ? "78%" : "82%",
+                    aspectRatio:
+                      cameraTarget === "bank" ? "1.4 / 1" : "1.586 / 1",
+                    maxHeight: "78%",
+                  }}
+                >
+                  {/* Corner marks */}
+                  <span className="absolute -top-0.5 -left-0.5 w-4 h-4 border-t-4 border-l-4 border-red-400" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 border-t-4 border-r-4 border-red-400" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-4 h-4 border-b-4 border-l-4 border-red-400" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 border-b-4 border-r-4 border-red-400" />
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-6 text-[10px] uppercase tracking-wide text-white bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">
+                    {cameraTarget === "bank"
+                      ? "Place bank card / slip inside the box"
+                      : "Place National ID inside the box"}
+                  </span>
+                </div>
+              </div>
             </div>
             {cameraError && (
               <p className="text-red-600 text-sm px-4 py-2">{cameraError}</p>
@@ -3032,15 +3098,19 @@ export default function Dashboard() {
                 className="btn-primary"
                 disabled={!!cameraError}
               >
-                Capture photo
+                {cameraTarget === "front"
+                  ? "Capture Front ID"
+                  : cameraTarget === "back"
+                    ? "Capture Back ID"
+                    : "Capture Bank Details"}
               </button>
               <button type="button" onClick={closeCamera} className="btn-secondary">
-                Cancel
+                Stop Camera
               </button>
             </div>
             <p className="text-xs text-gray-500 text-center pb-3 px-4">
-              Allow camera access when the browser asks. If camera fails, use From
-              gallery instead.
+              Align the document inside the red box, then capture. Only the area
+              inside the box is saved. If camera fails, use From gallery instead.
             </p>
           </div>
         </div>
